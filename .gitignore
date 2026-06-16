@@ -1,0 +1,9 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+database/*.db
+logs/*.log
+config/credentials.json
+config/token.json
+config/pydrive_settings.yaml

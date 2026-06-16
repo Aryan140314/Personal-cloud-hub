@@ -1,0 +1,9 @@
+{
+  "watch_folders": [],
+  "theme": "dark",
+  "notifications": true,
+  "auto_start_monitor": false,
+  "google_drive_root": "Personal Cloud Hub",
+  "backup_folder": "",
+  "duplicate_policy": "skip"
+}

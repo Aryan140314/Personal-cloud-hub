@@ -1,0 +1,7 @@
+PyQt6>=6.7
+watchdog>=4.0
+PyDrive2>=1.19
+sqlite-utils>=3.36
+plyer>=2.1
+pyqtgraph>=0.13
+python-dotenv>=1.0
