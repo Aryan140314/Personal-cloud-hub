@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import logging
+
 from services.database_service import DatabaseService
+
+log = logging.getLogger(__name__)
 
 
 class NotificationService:
@@ -20,6 +24,7 @@ class NotificationService:
                 app_name="Personal Cloud Hub",
                 timeout=5,
             )
-        except Exception:
+        except Exception as exc:
             # Notifications should never break the upload pipeline.
+            log.debug("Desktop notification failed: %s", exc)
             return

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+log = logging.getLogger(__name__)
 
 from services.database_service import DatabaseService
 
@@ -95,6 +98,7 @@ oauth_scope:
 
         gauth.SaveCredentialsFile(str(self.token_path))
         self._drive = GoogleDrive(gauth)
+        log.info("Connected to Google Drive successfully.")
         return self._drive
 
     def upload_file(self, file_path: Path, category: str) -> DriveUploadResult:
@@ -114,6 +118,13 @@ oauth_scope:
             file_id=drive_file.get("id", ""),
             link=drive_file.get("alternateLink", ""),
         )
+
+    def delete_file(self, drive_file_id: str) -> None:
+        """Delete a file from Google Drive by its Drive file ID."""
+        drive = self.connect()
+        drive_file = drive.CreateFile({"id": drive_file_id})
+        drive_file.Trash()  # Move to trash rather than permanent delete for safety.
+        log.info("Trashed Google Drive file %s", drive_file_id)
 
     def _ensure_root_folder(self, drive) -> str:
         if self._root_folder_id:

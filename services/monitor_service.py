@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from pathlib import Path
 from typing import Callable
 
 from services.upload_service import UploadResult, UploadService
+
+log = logging.getLogger(__name__)
+
+_SEEN_EXPIRY_SECONDS = 30
 
 
 class MonitorService:
@@ -56,6 +61,7 @@ class MonitorService:
         observer.start()
         self._observer = observer
         self._running = True
+        log.info("Folder monitor started for %d folder(s).", len(valid_folders))
 
     def stop(self) -> None:
         if self._observer is None:
@@ -65,10 +71,18 @@ class MonitorService:
         self._observer.join(timeout=5)
         self._observer = None
         self._running = False
+        self._seen_recently.clear()
+        log.info("Folder monitor stopped.")
 
     def _schedule_upload(self, path: Path) -> None:
         key = str(path.resolve())
         now = time.monotonic()
+
+        # Prune stale entries to prevent memory leak.
+        stale = [k for k, t in self._seen_recently.items() if now - t > _SEEN_EXPIRY_SECONDS]
+        for k in stale:
+            del self._seen_recently[k]
+
         last = self._seen_recently.get(key)
         if last and now - last < 3:
             return

@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
+import threading
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
+
+log = logging.getLogger(__name__)
 
 
 DEFAULT_SETTINGS = {
@@ -23,9 +27,12 @@ class DatabaseService:
     def __init__(self, db_path: Path):
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.Lock()
 
     @contextmanager
     def connect(self):
+        """Thread-safe database connection context manager."""
+        self._lock.acquire()
         connection = sqlite3.connect(self.db_path)
         connection.row_factory = sqlite3.Row
         try:
@@ -33,8 +40,10 @@ class DatabaseService:
             connection.commit()
         finally:
             connection.close()
+            self._lock.release()
 
     def initialize(self) -> None:
+        log.info("Initializing database at %s", self.db_path)
         with self.connect() as conn:
             conn.executescript(
                 """
@@ -95,6 +104,7 @@ class DatabaseService:
         google_drive_link: str | None = None,
         upload_date: str | None = None,
     ) -> int:
+        log.debug("Adding file record: %s [%s]", filename, status)
         now = datetime.now().isoformat(timespec="seconds")
         with self.connect() as conn:
             cursor = conn.execute(
@@ -134,6 +144,7 @@ class DatabaseService:
         google_drive_link: str | None = None,
         upload_date: str | None = None,
     ) -> None:
+        log.debug("Updating file %d status to %s", file_id, status)
         now = datetime.now().isoformat(timespec="seconds")
         with self.connect() as conn:
             conn.execute(
@@ -306,3 +317,34 @@ class DatabaseService:
             if value and value not in clean:
                 clean.append(value)
         self.set_setting("watch_folders", clean)
+
+    def get_files_by_status(self, status: str, limit: int = 500) -> list[sqlite3.Row]:
+        """Return file records matching an exact status value."""
+        with self.connect() as conn:
+            return list(
+                conn.execute(
+                    "SELECT * FROM files WHERE status = ? ORDER BY id LIMIT ?",
+                    (status, limit),
+                ).fetchall()
+            )
+
+    def delete_file_record(self, file_id: int) -> None:
+        """Remove a file record from the database."""
+        log.info("Deleting file record %d", file_id)
+        with self.connect() as conn:
+            conn.execute("DELETE FROM files WHERE id = ?", (file_id,))
+
+    def get_all_files_for_export(self) -> list[sqlite3.Row]:
+        """Return all file records for CSV export."""
+        with self.connect() as conn:
+            return list(
+                conn.execute(
+                    """
+                    SELECT id, filename, filepath, filesize, filetype, category,
+                           file_hash, upload_date, google_drive_id,
+                           google_drive_link, status, message, created_at, updated_at
+                    FROM files
+                    ORDER BY id
+                    """
+                ).fetchall()
+            )
