@@ -1,9 +1,24 @@
 from __future__ import annotations
 
-from PyQt6.QtWidgets import QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
+import csv
+import logging
+
+from PyQt6.QtWidgets import (
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 from services.database_service import DatabaseService
 from ui.widgets import page_header
+
+log = logging.getLogger(__name__)
 
 
 class AnalyticsPage(QWidget):
@@ -27,6 +42,10 @@ class AnalyticsPage(QWidget):
         self.summary_table.setHorizontalHeaderLabels(["Metric", "Value"])
         self.summary_table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self.summary_table)
+
+        self.export_button = QPushButton("Export Upload History to CSV")
+        self.export_button.clicked.connect(self.export_csv)
+        layout.addWidget(self.export_button)
 
         self.refresh()
 
@@ -92,3 +111,37 @@ class AnalyticsPage(QWidget):
         for index, (name, value) in enumerate(rows):
             self.summary_table.setItem(index, 0, QTableWidgetItem(name))
             self.summary_table.setItem(index, 1, QTableWidgetItem(str(value)))
+
+    def export_csv(self) -> None:
+        """Export all file records to a CSV file."""
+        save_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Upload History",
+            "upload_history.csv",
+            "CSV Files (*.csv)",
+        )
+        if not save_path:
+            return
+
+        all_rows = self.db.get_all_files_for_export()
+        columns = [
+            "id", "filename", "filepath", "filesize", "filetype", "category",
+            "file_hash", "upload_date", "google_drive_id", "google_drive_link",
+            "status", "message", "created_at", "updated_at",
+        ]
+
+        try:
+            with open(save_path, "w", newline="", encoding="utf-8") as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(columns)
+                for row in all_rows:
+                    writer.writerow([row[col] for col in columns])
+            QMessageBox.information(
+                self,
+                "Export Complete",
+                f"Exported {len(all_rows)} records to:\n{save_path}",
+            )
+            log.info("CSV export: %d records to %s", len(all_rows), save_path)
+        except Exception as exc:
+            QMessageBox.warning(self, "Export Failed", f"Could not write CSV:\n{exc}")
+            log.error("CSV export failed: %s", exc)
