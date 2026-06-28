@@ -103,9 +103,14 @@ class MainWindow(QMainWindow):
 
         root = QWidget()
         self.setCentralWidget(root)
-        layout = QHBoxLayout(root)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        main_layout = QVBoxLayout(root)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        body = QWidget()
+        body_layout = QHBoxLayout(body)
+        body_layout.setContentsMargins(0, 0, 0, 0)
+        body_layout.setSpacing(0)
 
         sidebar = QFrame()
         sidebar.setObjectName("Sidebar")
@@ -125,7 +130,7 @@ class MainWindow(QMainWindow):
         self.stack = QStackedWidget()
         self.dashboard_page = DashboardPage(db, drive_service)
         self.upload_page = UploadPage(db, upload_service)
-        self.search_page = SearchPage(db)
+        self.search_page = SearchPage(db, upload_service)
         self.analytics_page = AnalyticsPage(db)
         self.settings_page = SettingsPage(db, self.apply_current_settings)
 
@@ -148,29 +153,75 @@ class MainWindow(QMainWindow):
             sidebar_layout.addWidget(button)
 
         sidebar_layout.addStretch(1)
-        layout.addWidget(sidebar)
-        layout.addWidget(self.stack, stretch=1)
+        body_layout.addWidget(sidebar)
+        body_layout.addWidget(self.stack, stretch=1)
+        main_layout.addWidget(body, stretch=1)
+
+        # ── Status bar ────────────────────────────────────────────────
+        self.status_bar = QFrame()
+        self.status_bar.setObjectName("Card")
+        self.status_bar.setFixedHeight(36)
+        status_bar_layout = QHBoxLayout(self.status_bar)
+        status_bar_layout.setContentsMargins(16, 0, 16, 0)
+        status_bar_layout.setSpacing(24)
+
+        self.sb_files_label = QLabel("")
+        self.sb_files_label.setObjectName("Muted")
+        self.sb_monitor_label = QLabel("")
+        self.sb_monitor_label.setObjectName("Muted")
+        self.sb_drive_label = QLabel("")
+        self.sb_drive_label.setObjectName("Muted")
+
+        status_bar_layout.addWidget(self.sb_files_label)
+        status_bar_layout.addWidget(self.sb_monitor_label)
+        status_bar_layout.addStretch(1)
+        status_bar_layout.addWidget(self.sb_drive_label)
+        main_layout.addWidget(self.status_bar)
 
         self.nav_buttons[0].setChecked(True)
         self.apply_current_settings()
 
         self.timer = QTimer(self)
-        self.timer.timeout.connect(self.refresh_current_pages)
+        self.timer.timeout.connect(self._on_tick)
         self.timer.start(5000)
 
         if self.db.get_setting("auto_start_monitor", False):
             self.upload_page.start_monitor()
 
+        self._refresh_status_bar()
+
     def set_page(self, index: int) -> None:
         self.stack.setCurrentIndex(index)
         for button_index, button in enumerate(self.nav_buttons):
             button.setChecked(button_index == index)
-        self.refresh_current_pages()
+        self._refresh_visible_page()
 
-    def refresh_current_pages(self) -> None:
-        self.dashboard_page.refresh()
-        self.upload_page.refresh()
-        self.analytics_page.refresh()
+    def _on_tick(self) -> None:
+        """Timer callback — refresh only what is visible."""
+        self._refresh_visible_page()
+        self._refresh_status_bar()
+
+    def _refresh_visible_page(self) -> None:
+        """Only refresh the currently visible page to save CPU/DB queries."""
+        current = self.stack.currentIndex()
+        page = self.pages[current][1]
+        if hasattr(page, "refresh"):
+            page.refresh()
+
+    def _refresh_status_bar(self) -> None:
+        stats = self.db.get_dashboard_stats()
+        total = stats["total_files"]
+        uploaded = stats["uploaded_files"]
+        failed = stats["failed_uploads"]
+        pending = stats["pending_uploads"]
+
+        self.sb_files_label.setText(
+            f"Files: {total}  |  Uploaded: {uploaded}  |  Pending: {pending}  |  Failed: {failed}"
+        )
+
+        monitor_status = "Running" if self.upload_page.monitor.is_running else "Stopped"
+        self.sb_monitor_label.setText(f"Monitor: {monitor_status}")
+        self.sb_drive_label.setText(self.drive_service.status_text())
 
     def apply_current_settings(self) -> None:
         self.drive_service.set_root_folder_name(self.db.get_setting("google_drive_root", "Personal Cloud Hub"))
