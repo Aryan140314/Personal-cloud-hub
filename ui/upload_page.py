@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-import threading
+import logging
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from PyQt6.QtCore import QObject, Qt, pyqtSignal
@@ -10,6 +11,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QListWidget,
+    QMessageBox,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -21,6 +23,10 @@ from services.database_service import DatabaseService
 from services.monitor_service import MonitorService
 from services.upload_service import UploadResult, UploadService
 from ui.widgets import page_header
+
+log = logging.getLogger(__name__)
+
+_MAX_UPLOAD_WORKERS = 4
 
 
 class UploadSignals(QObject):
@@ -94,8 +100,12 @@ class UploadPage(QWidget):
         self.db = db
         self.upload_service = upload_service
         self.signals = UploadSignals()
-        self.signals.completed.connect(self.handle_upload_result)
+        self.signals.completed.connect(self._handle_upload_result)
         self.monitor = MonitorService(upload_service, result_callback=self.signals.completed.emit)
+        self._pool = ThreadPoolExecutor(max_workers=_MAX_UPLOAD_WORKERS)
+        self._queued = 0
+        self._completed = 0
+        self._failed = 0
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
@@ -119,6 +129,10 @@ class UploadPage(QWidget):
         controls.addStretch(1)
         layout.addLayout(controls)
 
+        self.progress_label = QLabel("")
+        self.progress_label.setObjectName("Muted")
+        layout.addWidget(self.progress_label)
+
         self.status_label = QLabel("")
         self.status_label.setObjectName("Muted")
         layout.addWidget(self.status_label)
@@ -140,6 +154,8 @@ class UploadPage(QWidget):
 
         self.refresh()
 
+    # ── Upload actions ────────────────────────────────────────────────
+
     def select_files(self) -> None:
         files, _ = QFileDialog.getOpenFileNames(self, "Select files to upload")
         self.upload_paths(files)
@@ -149,16 +165,32 @@ class UploadPage(QWidget):
         if not files:
             self.status_label.setText("No files found in dropped item.")
             return
+        # Confirmation for large batches.
+        if len(files) > 10:
+            reply = QMessageBox.question(
+                self,
+                "Confirm Upload",
+                f"You are about to upload {len(files)} files. Continue?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                self.status_label.setText("Upload cancelled.")
+                return
         self.status_label.setText(f"Queued {len(files)} file(s) from drag and drop.")
         self.upload_paths(files)
 
     def upload_paths(self, paths: list[str]) -> None:
-        for file_path in self._expand_files(paths):
-            threading.Thread(target=self._upload_async, args=(file_path,), daemon=True).start()
+        files = self._expand_files(paths)
+        self._queued += len(files)
+        self._update_progress()
+        for file_path in files:
+            self._pool.submit(self._upload_async, file_path)
 
     def _upload_async(self, file_path: str) -> None:
         result = self.upload_service.upload_file(file_path)
         self.signals.completed.emit(result)
+
+    # ── Monitor ───────────────────────────────────────────────────────
 
     def toggle_monitor(self) -> None:
         if self.monitor.is_running:
@@ -180,8 +212,18 @@ class UploadPage(QWidget):
         self.status_label.setText("Folder monitor stopped.")
         self.monitor_button.setText("Start Monitor")
 
+    # ── Retry ─────────────────────────────────────────────────────────
+
     def retry_pending(self) -> None:
-        threading.Thread(target=self._retry_async, daemon=True).start()
+        reply = QMessageBox.question(
+            self,
+            "Retry Pending Uploads",
+            "Retry all files waiting for Google Drive setup?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        self._pool.submit(self._retry_async)
 
     def _retry_async(self) -> None:
         results = self.upload_service.retry_pending()
@@ -191,9 +233,32 @@ class UploadPage(QWidget):
         for result in results:
             self.signals.completed.emit(result)
 
-    def handle_upload_result(self, result: UploadResult) -> None:
+    # ── Result handling ───────────────────────────────────────────────
+
+    def _handle_upload_result(self, result: UploadResult) -> None:
+        self._completed += 1
+        if result.status == "failed":
+            self._failed += 1
+        self._update_progress()
         self.status_label.setText(f"{result.filename}: {result.message}")
         self.refresh()
+
+    def _update_progress(self) -> None:
+        if self._queued > 0:
+            self.progress_label.setText(
+                f"Progress: {self._completed}/{self._queued} completed  |  {self._failed} failed"
+            )
+        else:
+            self.progress_label.setText("")
+
+    def reset_counters(self) -> None:
+        """Reset the upload progress counters."""
+        self._queued = 0
+        self._completed = 0
+        self._failed = 0
+        self._update_progress()
+
+    # ── Refresh ───────────────────────────────────────────────────────
 
     def refresh(self) -> None:
         self.destination_label.setText(
@@ -211,6 +276,8 @@ class UploadPage(QWidget):
             for col_index, value in enumerate(values):
                 self.log_table.setItem(row_index, col_index, QTableWidgetItem(str(value)))
         self.log_table.resizeColumnsToContents()
+
+    # ── Helpers ────────────────────────────────────────────────────────
 
     @staticmethod
     def _expand_files(paths: list[str]) -> list[str]:
