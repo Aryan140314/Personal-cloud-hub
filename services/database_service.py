@@ -32,7 +32,8 @@ class DatabaseService:
     @contextmanager
     def connect(self):
         """Thread-safe database connection context manager."""
-        self._lock.acquire()
+        if not self._lock.acquire(timeout=30):
+            raise RuntimeError("Database lock timeout — another operation may be stuck.")
         connection = sqlite3.connect(self.db_path)
         connection.row_factory = sqlite3.Row
         try:
