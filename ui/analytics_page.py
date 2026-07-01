@@ -27,8 +27,8 @@ class AnalyticsPage(QWidget):
         self.db = db
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(14)
+        layout.setContentsMargins(28, 26, 28, 26)
+        layout.setSpacing(15)
         layout.addWidget(page_header("Analytics", "Upload trends and file type distribution."))
 
         charts = QHBoxLayout()
@@ -40,10 +40,13 @@ class AnalyticsPage(QWidget):
 
         self.summary_table = QTableWidget(0, 2)
         self.summary_table.setHorizontalHeaderLabels(["Metric", "Value"])
+        self.summary_table.setAlternatingRowColors(True)
+        self.summary_table.verticalHeader().setVisible(False)
         self.summary_table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self.summary_table)
 
         self.export_button = QPushButton("Export Upload History to CSV")
+        self.export_button.setProperty("secondary", True)
         self.export_button.clicked.connect(self.export_csv)
         layout.addWidget(self.export_button)
 
@@ -54,11 +57,34 @@ class AnalyticsPage(QWidget):
             import pyqtgraph as pg
 
             plot = pg.PlotWidget()
+            plot.setProperty("chartTitle", title)
             plot.setTitle(title)
             plot.showGrid(x=True, y=True, alpha=0.25)
+            plot.setBackground("#151d28")
             return plot
         except Exception:
             return QLabel(f"{title} chart requires pyqtgraph.")
+
+    def set_theme(self, theme: str) -> None:
+        colors = {
+            "dark": {
+                "background": "#151d28",
+                "foreground": "#dbe7f3",
+            },
+            "light": {
+                "background": "#ffffff",
+                "foreground": "#24364b",
+            },
+        }[theme if theme == "light" else "dark"]
+        for chart in (self.upload_chart, self.type_chart):
+            if not hasattr(chart, "setBackground"):
+                continue
+            chart.setBackground(colors["background"])
+            plot_item = chart.getPlotItem()
+            plot_item.setTitle(chart.property("chartTitle"), color=colors["foreground"])
+            plot_item.getAxis("bottom").setTextPen(colors["foreground"])
+            plot_item.getAxis("left").setTextPen(colors["foreground"])
+            plot_item.showGrid(x=True, y=True, alpha=0.25)
 
     def refresh(self) -> None:
         self._refresh_upload_chart()
