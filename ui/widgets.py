@@ -18,9 +18,10 @@ class MetricCard(QFrame):
     def __init__(self, label: str, value: str = "0"):
         super().__init__()
         self.setObjectName("Card")
+        self.setMinimumHeight(94)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(6)
+        layout.setContentsMargins(18, 16, 18, 16)
+        layout.setSpacing(7)
 
         self.value_label = QLabel(value)
         self.value_label.setObjectName("Metric")
@@ -37,8 +38,8 @@ class MetricCard(QFrame):
 def page_header(title: str, subtitle: str) -> QWidget:
     widget = QWidget()
     layout = QVBoxLayout(widget)
-    layout.setContentsMargins(0, 0, 0, 10)
-    layout.setSpacing(4)
+    layout.setContentsMargins(0, 0, 0, 12)
+    layout.setSpacing(5)
 
     title_label = QLabel(title)
     title_label.setObjectName("Title")
