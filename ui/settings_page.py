@@ -25,43 +25,56 @@ class SettingsPage(QWidget):
         self.theme_callback = theme_callback
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(14)
+        layout.setContentsMargins(28, 26, 28, 26)
+        layout.setSpacing(15)
         layout.addWidget(page_header("Settings", "Choose watch folders, Drive destination, and app preferences."))
 
         # ── Watch folders ─────────────────────────────────────────────
-        layout.addWidget(QLabel("Watch Folders"))
+        watch_title = QLabel("Watch Folders")
+        watch_title.setObjectName("SectionTitle")
+        layout.addWidget(watch_title)
         self.folder_list = QListWidget()
         layout.addWidget(self.folder_list)
 
         self.add_folder_button = QPushButton("Add Folder")
+        self.add_folder_button.setProperty("secondary", True)
         self.add_folder_button.clicked.connect(self.add_folder)
         self.remove_folder_button = QPushButton("Remove Selected")
+        self.remove_folder_button.setProperty("danger", True)
         self.remove_folder_button.clicked.connect(self.remove_selected)
         layout.addWidget(row_widget(self.add_folder_button, self.remove_folder_button))
 
         # ── Drive root ────────────────────────────────────────────────
-        layout.addWidget(QLabel("Google Drive Root Folder"))
+        drive_title = QLabel("Google Drive Root Folder")
+        drive_title.setObjectName("SectionTitle")
+        layout.addWidget(drive_title)
         self.root_folder_input = QLineEdit()
         self.root_folder_input.setPlaceholderText("Google Drive root folder")
         layout.addWidget(self.root_folder_input)
 
         # ── Local backup ──────────────────────────────────────────────
-        layout.addWidget(QLabel("Local Backup Folder (optional)"))
+        backup_title = QLabel("Local Backup Folder (optional)")
+        backup_title.setObjectName("SectionTitle")
+        layout.addWidget(backup_title)
         self.backup_folder_input = QLineEdit()
         self.backup_folder_input.setPlaceholderText("Optional local backup folder")
         self.choose_backup_button = QPushButton("Choose Backup Folder")
+        self.choose_backup_button.setProperty("secondary", True)
         self.choose_backup_button.clicked.connect(self.choose_backup_folder)
         layout.addWidget(row_widget(self.backup_folder_input, self.choose_backup_button))
 
         # ── Duplicate policy ──────────────────────────────────────────
-        layout.addWidget(QLabel("Duplicate File Policy"))
+        duplicate_title = QLabel("Duplicate File Policy")
+        duplicate_title.setObjectName("SectionTitle")
+        layout.addWidget(duplicate_title)
         self.duplicate_combo = QComboBox()
         self.duplicate_combo.addItems(["skip", "rename", "overwrite"])
         layout.addWidget(self.duplicate_combo)
 
         # ── Theme ─────────────────────────────────────────────────────
-        layout.addWidget(QLabel("Theme"))
+        theme_title = QLabel("Theme")
+        theme_title.setObjectName("SectionTitle")
+        layout.addWidget(theme_title)
         self.theme_combo = QComboBox()
         self.theme_combo.addItems(["dark", "light"])
         layout.addWidget(self.theme_combo)
@@ -135,9 +148,9 @@ class SettingsPage(QWidget):
         # User feedback.
         if dropped:
             names = ", ".join(dropped)
-            self.save_status_label.setText(f"✅ Settings saved.  ⚠️ Removed {len(dropped)} missing folder(s): {names}")
+            self.save_status_label.setText(f"Settings saved. Removed {len(dropped)} missing folder(s): {names}")
         else:
-            self.save_status_label.setText("✅ Settings saved successfully.")
+            self.save_status_label.setText("Settings saved successfully.")
 
         # Refresh the folder list to reflect dropped items.
         self.folder_list.clear()
