@@ -34,12 +34,12 @@ class DashboardPage(QWidget):
         self.drive_service = drive_service
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(16)
+        layout.setContentsMargins(28, 26, 28, 26)
+        layout.setSpacing(18)
         layout.addWidget(page_header("Dashboard", "Live overview of your personal cloud archive."))
 
         grid = QGridLayout()
-        grid.setSpacing(12)
+        grid.setSpacing(14)
         self.cards = {
             "total_files": MetricCard("Total Files"),
             "storage_used": MetricCard("Storage Used"),
@@ -55,13 +55,18 @@ class DashboardPage(QWidget):
         recent_card = QFrame()
         recent_card.setObjectName("Card")
         recent_layout = QVBoxLayout(recent_card)
-        recent_layout.setContentsMargins(16, 14, 16, 16)
-        recent_layout.addWidget(QLabel("Recent Activity"))
+        recent_layout.setContentsMargins(18, 16, 18, 18)
+        recent_layout.setSpacing(12)
+        recent_title = QLabel("Recent Activity")
+        recent_title.setObjectName("SectionTitle")
+        recent_layout.addWidget(recent_title)
 
         self.table = QTableWidget(0, 5)
         self.table.setHorizontalHeaderLabels(["File", "Category", "Size", "Status", "Updated"])
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setAlternatingRowColors(True)
+        self.table.verticalHeader().setVisible(False)
         self.table.horizontalHeader().setStretchLastSection(True)
         recent_layout.addWidget(self.table)
         layout.addWidget(recent_card, stretch=1)
@@ -99,7 +104,7 @@ class MainWindow(QMainWindow):
         self.drive_service = drive_service
         self.upload_service = upload_service
         self.setWindowTitle("Personal Cloud Hub")
-        self.resize(1180, 760)
+        self.resize(1240, 790)
 
         root = QWidget()
         self.setCentralWidget(root)
@@ -114,13 +119,13 @@ class MainWindow(QMainWindow):
 
         sidebar = QFrame()
         sidebar.setObjectName("Sidebar")
-        sidebar.setFixedWidth(220)
+        sidebar.setFixedWidth(236)
         sidebar_layout = QVBoxLayout(sidebar)
-        sidebar_layout.setContentsMargins(14, 18, 14, 18)
+        sidebar_layout.setContentsMargins(16, 22, 16, 18)
         sidebar_layout.setSpacing(8)
 
         brand = QLabel("Personal Cloud Hub")
-        brand.setObjectName("Title")
+        brand.setObjectName("Brand")
         sidebar_layout.addWidget(brand)
         status = QLabel("Automatic file backup")
         status.setObjectName("Muted")
@@ -159,10 +164,10 @@ class MainWindow(QMainWindow):
 
         # ── Status bar ────────────────────────────────────────────────
         self.status_bar = QFrame()
-        self.status_bar.setObjectName("Card")
-        self.status_bar.setFixedHeight(36)
+        self.status_bar.setObjectName("StatusBar")
+        self.status_bar.setFixedHeight(40)
         status_bar_layout = QHBoxLayout(self.status_bar)
-        status_bar_layout.setContentsMargins(16, 0, 16, 0)
+        status_bar_layout.setContentsMargins(18, 0, 18, 0)
         status_bar_layout.setSpacing(24)
 
         self.sb_files_label = QLabel("")
@@ -225,8 +230,16 @@ class MainWindow(QMainWindow):
 
     def apply_current_settings(self) -> None:
         self.drive_service.set_root_folder_name(self.db.get_setting("google_drive_root", "Personal Cloud Hub"))
-        self.setStyleSheet(stylesheet(self.db.get_setting("theme", "dark")))
+        theme = self.db.get_setting("theme", "dark")
+        self.setStyleSheet(stylesheet(theme))
+        self.analytics_page.set_theme(theme)
 
     def closeEvent(self, event):
+
+        self.timer.stop()
+
         self.upload_page.stop_monitor()
+
+        self.upload_page.shutdown_pool()
+
         super().closeEvent(event)
