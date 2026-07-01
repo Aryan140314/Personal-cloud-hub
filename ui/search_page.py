@@ -33,8 +33,8 @@ class SearchPage(QWidget):
         self.rows = []
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(14)
+        layout.setContentsMargins(28, 26, 28, 26)
+        layout.setSpacing(15)
         layout.addWidget(page_header("Search", "Find files by name, type, category, status, or path."))
 
         self.search_input = QLineEdit()
@@ -44,12 +44,15 @@ class SearchPage(QWidget):
 
         # Action buttons row.
         self.open_button = QPushButton("Open Local File")
+        self.open_button.setProperty("secondary", True)
         self.open_button.clicked.connect(self.open_selected)
         self.drive_button = QPushButton("Open Drive Link")
         self.drive_button.clicked.connect(self.open_drive_link)
         self.delete_button = QPushButton("Delete from Drive")
+        self.delete_button.setProperty("danger", True)
         self.delete_button.clicked.connect(self.delete_from_drive)
         self.export_button = QPushButton("Export to CSV")
+        self.export_button.setProperty("secondary", True)
         self.export_button.clicked.connect(self.export_csv)
         layout.addWidget(row_widget(self.open_button, self.drive_button, self.delete_button, self.export_button))
 
@@ -57,6 +60,8 @@ class SearchPage(QWidget):
         self.table.setHorizontalHeaderLabels(["File", "Category", "Type", "Size", "Status", "Path", "Drive"])
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setAlternatingRowColors(True)
+        self.table.verticalHeader().setVisible(False)
         self.table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self.table, stretch=1)
         self.run_search("")
