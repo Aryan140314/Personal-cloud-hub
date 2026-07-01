@@ -44,8 +44,8 @@ class DropZone(QFrame):
         self.setMinimumHeight(130)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(6)
+        layout.setContentsMargins(22, 22, 22, 22)
+        layout.setSpacing(7)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         title = QLabel("Drop files or folders here")
@@ -108,8 +108,8 @@ class UploadPage(QWidget):
         self._failed = 0
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(14)
+        layout.setContentsMargins(28, 26, 28, 26)
+        layout.setSpacing(15)
         layout.addWidget(page_header("Upload Center", "Upload files manually or watch folders automatically."))
 
         self.drop_zone = DropZone()
@@ -120,8 +120,10 @@ class UploadPage(QWidget):
         self.upload_button = QPushButton("Select Files")
         self.upload_button.clicked.connect(self.select_files)
         self.monitor_button = QPushButton("Start Monitor")
+        self.monitor_button.setProperty("secondary", True)
         self.monitor_button.clicked.connect(self.toggle_monitor)
         self.retry_button = QPushButton("Retry Pending")
+        self.retry_button.setProperty("secondary", True)
         self.retry_button.clicked.connect(self.retry_pending)
         controls.addWidget(self.upload_button)
         controls.addWidget(self.monitor_button)
@@ -141,14 +143,20 @@ class UploadPage(QWidget):
         self.destination_label.setObjectName("Muted")
         layout.addWidget(self.destination_label)
 
-        layout.addWidget(QLabel("Watched Folders"))
+        watched_title = QLabel("Watched Folders")
+        watched_title.setObjectName("SectionTitle")
+        layout.addWidget(watched_title)
         self.folder_list = QListWidget()
         self.folder_list.setMaximumHeight(120)
         layout.addWidget(self.folder_list)
 
-        layout.addWidget(QLabel("Upload Logs"))
+        logs_title = QLabel("Upload Logs")
+        logs_title.setObjectName("SectionTitle")
+        layout.addWidget(logs_title)
         self.log_table = QTableWidget(0, 4)
         self.log_table.setHorizontalHeaderLabels(["Time", "File", "Status", "Message"])
+        self.log_table.setAlternatingRowColors(True)
+        self.log_table.verticalHeader().setVisible(False)
         self.log_table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self.log_table, stretch=1)
 
