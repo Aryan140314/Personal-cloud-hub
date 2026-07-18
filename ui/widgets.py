@@ -18,13 +18,14 @@ class MetricCard(QFrame):
     def __init__(self, label: str, value: str = "0"):
         super().__init__()
         self.setObjectName("Card")
-        self.setMinimumHeight(94)
+        self.setMinimumHeight(104)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 16, 18, 16)
-        layout.setSpacing(7)
+        layout.setSpacing(6)
 
         self.value_label = QLabel(value)
         self.value_label.setObjectName("Metric")
+        self.value_label.setWordWrap(True)
         title = QLabel(label)
         title.setObjectName("Muted")
 
