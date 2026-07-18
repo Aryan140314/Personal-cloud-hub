@@ -20,6 +20,8 @@ DEFAULT_SETTINGS = {
     "google_drive_root": "Personal Cloud Hub",
     "backup_folder": "",
     "duplicate_policy": "skip",
+    "retention_days": 0,
+    "max_upload_retries": 3,
 }
 
 
@@ -62,7 +64,10 @@ class DatabaseService:
                     status TEXT NOT NULL DEFAULT 'pending',
                     message TEXT,
                     created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
+                    updated_at TEXT NOT NULL,
+                    retry_count INTEGER NOT NULL DEFAULT 0,
+                    last_error TEXT,
+                    tags TEXT
                 );
 
                 CREATE TABLE IF NOT EXISTS settings (
@@ -83,8 +88,18 @@ class DatabaseService:
                 CREATE INDEX IF NOT EXISTS idx_files_hash ON files(file_hash);
                 CREATE INDEX IF NOT EXISTS idx_files_status ON files(status);
                 CREATE INDEX IF NOT EXISTS idx_files_upload_date ON files(upload_date);
+                CREATE INDEX IF NOT EXISTS idx_files_category ON files(category);
                 """
             )
+
+            existing_columns = {row[1] for row in conn.execute("PRAGMA table_info(files)").fetchall()}
+            for column_name, definition in (
+                ("retry_count", "retry_count INTEGER NOT NULL DEFAULT 0"),
+                ("last_error", "last_error TEXT"),
+                ("tags", "tags TEXT"),
+            ):
+                if column_name not in existing_columns:
+                    conn.execute(f"ALTER TABLE files ADD COLUMN {definition}")
 
         for key, value in DEFAULT_SETTINGS.items():
             if self.get_setting(key) is None:
@@ -104,6 +119,7 @@ class DatabaseService:
         google_drive_id: str | None = None,
         google_drive_link: str | None = None,
         upload_date: str | None = None,
+        tags: str | None = None,
     ) -> int:
         log.debug("Adding file record: %s [%s]", filename, status)
         now = datetime.now().isoformat(timespec="seconds")
@@ -113,9 +129,9 @@ class DatabaseService:
                 INSERT INTO files (
                     filename, filepath, filesize, filetype, category, file_hash,
                     upload_date, google_drive_id, google_drive_link, status,
-                    message, created_at, updated_at
+                    message, created_at, updated_at, retry_count, last_error, tags
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     filename,
@@ -131,6 +147,9 @@ class DatabaseService:
                     message,
                     now,
                     now,
+                    0,
+                    "",
+                    tags or "",
                 ),
             )
             return int(cursor.lastrowid)
@@ -144,6 +163,9 @@ class DatabaseService:
         google_drive_id: str | None = None,
         google_drive_link: str | None = None,
         upload_date: str | None = None,
+        retry_count: int | None = None,
+        last_error: str | None = None,
+        tags: str | None = None,
     ) -> None:
         log.debug("Updating file %d status to %s", file_id, status)
         now = datetime.now().isoformat(timespec="seconds")
@@ -156,10 +178,24 @@ class DatabaseService:
                     google_drive_id = COALESCE(?, google_drive_id),
                     google_drive_link = COALESCE(?, google_drive_link),
                     upload_date = COALESCE(?, upload_date),
+                    retry_count = COALESCE(?, retry_count),
+                    last_error = COALESCE(?, last_error),
+                    tags = COALESCE(?, tags),
                     updated_at = ?
                 WHERE id = ?
                 """,
-                (status, message, google_drive_id, google_drive_link, upload_date, now, file_id),
+                (
+                    status,
+                    message,
+                    google_drive_id,
+                    google_drive_link,
+                    upload_date,
+                    retry_count,
+                    last_error,
+                    tags,
+                    now,
+                    file_id,
+                ),
             )
 
     def find_uploaded_duplicate(self, file_hash: str) -> sqlite3.Row | None:
@@ -343,7 +379,8 @@ class DatabaseService:
                     """
                     SELECT id, filename, filepath, filesize, filetype, category,
                            file_hash, upload_date, google_drive_id,
-                           google_drive_link, status, message, created_at, updated_at
+                           google_drive_link, status, message, created_at, updated_at,
+                           retry_count, last_error, tags
                     FROM files
                     ORDER BY id
                     """
