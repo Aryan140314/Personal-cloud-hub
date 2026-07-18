@@ -36,7 +36,7 @@ class DashboardPage(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 26, 28, 26)
         layout.setSpacing(18)
-        layout.addWidget(page_header("Dashboard", "Live overview of your personal cloud archive."))
+        layout.addWidget(page_header("Dashboard", "Live overview of your personal cloud archive with stronger monitoring and faster access."))
 
         grid = QGridLayout()
         grid.setSpacing(14)
@@ -63,6 +63,7 @@ class DashboardPage(QWidget):
 
         self.table = QTableWidget(0, 5)
         self.table.setHorizontalHeaderLabels(["File", "Category", "Size", "Status", "Updated"])
+        self.table.setMinimumHeight(240)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setAlternatingRowColors(True)
@@ -104,7 +105,7 @@ class MainWindow(QMainWindow):
         self.drive_service = drive_service
         self.upload_service = upload_service
         self.setWindowTitle("Personal Cloud Hub")
-        self.resize(1240, 790)
+        self.resize(1280, 840)
 
         root = QWidget()
         self.setCentralWidget(root)
