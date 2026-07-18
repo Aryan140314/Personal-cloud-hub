@@ -111,6 +111,7 @@ class UploadService:
             file_hash=file_hash,
             status="pending",
             message="Waiting for Google Drive upload.",
+            tags=category,
         )
         self._copy_to_local_backup(file_path, category)
 
@@ -118,13 +119,23 @@ class UploadService:
             result = self.drive_service.upload_file(file_path, category)
         except DriveUnavailableError as exc:
             message = str(exc)
-            self.db.update_file_status(file_id, status="pending_setup", message=message)
+            self.db.update_file_status(
+                file_id,
+                status="pending_setup",
+                message=message,
+                last_error=message,
+            )
             self.db.add_upload_log(file_path.name, "pending_setup", message)
             log.warning("Drive unavailable for %s: %s", file_path.name, message)
             return UploadResult(file_id, file_path.name, "pending_setup", message)
         except Exception as exc:
             message = f"Upload failed: {exc}"
-            self.db.update_file_status(file_id, status="failed", message=message)
+            self.db.update_file_status(
+                file_id,
+                status="failed",
+                message=message,
+                last_error=message,
+            )
             self.db.add_upload_log(file_path.name, "failed", message)
             self.notification_service.notify("Upload Failed", f"{file_path.name}: {message}")
             log.error("Upload failed for %s: %s", file_path.name, exc)
@@ -138,6 +149,7 @@ class UploadService:
             google_drive_id=result.file_id,
             google_drive_link=result.link,
             upload_date=upload_date,
+            last_error="",
         )
         self.db.add_upload_log(file_path.name, "uploaded", "Uploaded successfully.")
         self.notification_service.notify("Upload Successful", file_path.name)
@@ -165,17 +177,45 @@ class UploadService:
                 )
                 continue
 
+            max_retries = int(self.db.get_setting("max_upload_retries", 3))
+            retry_count = int(row["retry_count"] or 0) + 1
+            if retry_count > max_retries:
+                message = f"Upload exceeded the retry limit of {max_retries}."
+                self.db.update_file_status(
+                    row["id"],
+                    status="failed",
+                    message=message,
+                    retry_count=retry_count,
+                    last_error=message,
+                )
+                self.db.add_upload_log(row["filename"], "failed", message)
+                results.append(UploadResult(row["id"], row["filename"], "failed", message))
+                continue
+
             # Attempt the Drive upload for the existing record.
             try:
                 drive_result = self.drive_service.upload_file(file_path, row["category"])
             except DriveUnavailableError as exc:
-                results.append(
-                    UploadResult(row["id"], row["filename"], "pending_setup", str(exc))
+                message = str(exc)
+                self.db.update_file_status(
+                    row["id"],
+                    status="pending_setup",
+                    message=message,
+                    retry_count=retry_count,
+                    last_error=message,
                 )
+                self.db.add_upload_log(row["filename"], "pending_setup", message)
+                results.append(UploadResult(row["id"], row["filename"], "pending_setup", message))
                 continue
             except Exception as exc:
                 message = f"Retry failed: {exc}"
-                self.db.update_file_status(row["id"], status="failed", message=message)
+                self.db.update_file_status(
+                    row["id"],
+                    status="failed",
+                    message=message,
+                    retry_count=retry_count,
+                    last_error=message,
+                )
                 self.db.add_upload_log(row["filename"], "failed", message)
                 results.append(UploadResult(row["id"], row["filename"], "failed", message))
                 log.error("Retry failed for %s: %s", row["filename"], exc)
@@ -189,6 +229,8 @@ class UploadService:
                 google_drive_id=drive_result.file_id,
                 google_drive_link=drive_result.link,
                 upload_date=upload_date,
+                retry_count=retry_count,
+                last_error="",
             )
             self.db.add_upload_log(row["filename"], "uploaded", "Uploaded successfully (retried).")
             self.notification_service.notify("Upload Successful", row["filename"])
