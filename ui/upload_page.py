@@ -110,7 +110,7 @@ class UploadPage(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 26, 28, 26)
         layout.setSpacing(15)
-        layout.addWidget(page_header("Upload Center", "Upload files manually or watch folders automatically."))
+        layout.addWidget(page_header("Upload Center", "Upload files manually, monitor folders, and recover pending uploads with confidence."))
 
         self.drop_zone = DropZone()
         self.drop_zone.files_dropped.connect(self.upload_dropped_paths)
@@ -133,14 +133,17 @@ class UploadPage(QWidget):
 
         self.progress_label = QLabel("")
         self.progress_label.setObjectName("Muted")
+        self.progress_label.setWordWrap(True)
         layout.addWidget(self.progress_label)
 
         self.status_label = QLabel("")
         self.status_label.setObjectName("Muted")
+        self.status_label.setWordWrap(True)
         layout.addWidget(self.status_label)
 
         self.destination_label = QLabel("")
         self.destination_label.setObjectName("Muted")
+        self.destination_label.setWordWrap(True)
         layout.addWidget(self.destination_label)
 
         watched_title = QLabel("Watched Folders")
